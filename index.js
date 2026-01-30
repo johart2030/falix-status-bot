@@ -66,6 +66,7 @@ client.once("clientReady", async () => {
     const content = message.content.toLowerCase();
     if (content.startsWith("!ping") || message.mentions.has(client.user)) {
       await message.reply("🏓 Pong! I am alive and monitoring the server.");
+      console.log(`!ping received from ${message.author.tag}`);
     }
   });
 
