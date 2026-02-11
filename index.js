@@ -1,16 +1,9 @@
-// Corrected player join/leave messages
+// Player join and leave messages
 
-const playerJoinMessage = "Player has joined the game!";
-const playerLeaveMessage = "Player has left the game!";
-
-function onPlayerJoin(player) {
-    console.log(playerJoinMessage.replace("Player", player.name));
+function playerJoin(player) {
+    console.log(`Player ${player} has joined the game.`);
 }
 
-function onPlayerLeave(player) {
-    console.log(playerLeaveMessage.replace("Player", player.name));
+function playerLeave(player) {
+    console.log(`Player ${player} has left the game.`);
 }
-
-// Example usage:
-// onPlayerJoin({ name: 'JohnDoe' });
-// onPlayerLeave({ name: 'JohnDoe' });
