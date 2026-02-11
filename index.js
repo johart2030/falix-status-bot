@@ -56,6 +56,28 @@ async function sendToAllChannels(message) {
   }
 }
 
+async function checkServerStatus() {
+  try {
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Status check timeout")), 10000)
+    );
+    
+    const statusPromise = status(SERVER_IP);
+    const res = await Promise.race([statusPromise, timeoutPromise]);
+
+    // Validate response has expected structure
+    if (!res || !res.players || typeof res.players.online !== "number") {
+      throw new Error("Invalid response structure from server");
+    }
+
+    return { online: true, players: res.players.online, error: null };
+  } catch (err) {
+    console.error(`Status check error: ${err.message}`);
+    return { online: false, players: 0, error: err.message };
+  }
+}
+
 client.once("clientReady", async () => {
   console.log(`Bot is running as: ${client.user.tag}`);
 
@@ -75,50 +97,52 @@ client.once("clientReady", async () => {
   console.log("Startup message sent to all channels.");
 
   setInterval(async () => {
-    try {
-      const res = await status(SERVER_IP);
-      const currentPlayers = res.players.online;
+    const { online, players: currentPlayers, error } = await checkServerStatus();
 
-      // ===== SERVER JUST CAME ONLINE =====
-      if (!isOnline) {
-        isOnline = true;
-        onlineSince = Date.now();
-        lastPlayerCount = currentPlayers;
+    // ===== SERVER JUST CAME ONLINE =====
+    if (online && !isOnline) {
+      isOnline = true;
+      onlineSince = Date.now();
+      lastPlayerCount = currentPlayers;
 
-        await sendToAllChannels(
-          "🟢 **Minecraft server is now ONLINE!**\n⏱️ Uptime: starting now"
-        );
-        return;
-      }
+      await sendToAllChannels(
+        "🟢 **Minecraft server is now ONLINE!**\n⏱️ Uptime: starting now"
+      );
+      console.log(`Server came online with ${currentPlayers} players`);
+      return;
+    }
 
-      // ===== PLAYER JOIN / LEAVE DETECTION =====
+    // ===== SERVER JUST WENT OFFLINE =====
+    if (!online && isOnline) {
+      isOnline = false;
+      const uptime = formatTime(Date.now() - onlineSince);
+      onlineSince = null;
+      lastPlayerCount = 0;
+
+      await sendToAllChannels(
+        `🔴 **Minecraft server is now OFFLINE**\n⏱️ Total runtime: **${uptime}**\n❌ Error: ${error}`
+      );
+      console.log(`Server went offline. Error: ${error}`);
+      return;
+    }
+
+    // ===== PLAYER JOIN / LEAVE DETECTION (only if server is online) =====
+    if (online && isOnline) {
       if (currentPlayers > lastPlayerCount) {
         const joined = currentPlayers - lastPlayerCount;
         await sendToAllChannels(
-          `👤 **${joined} player${joined > 1 ? "s" : ""} joined** (now ${currentPlayers} online)`
+          `👤 **${joined} player${joined > 1 ? "s" : ""} joined** (now ${currentPlayers} online)"
         );
       }
 
       if (currentPlayers < lastPlayerCount) {
         const left = lastPlayerCount - currentPlayers;
         await sendToAllChannels(
-          `🚪 **${left} player${left > 1 ? "s" : ""} left** (now ${currentPlayers} online)`
+          `🚪 **${left} player${left > 1 ? "s" : ""} left** (now ${currentPlayers} online)"
         );
       }
 
       lastPlayerCount = currentPlayers;
-
-    } catch {
-      if (isOnline) {
-        isOnline = false;
-        const uptime = formatTime(Date.now() - onlineSince);
-        onlineSince = null;
-        lastPlayerCount = 0;
-
-        await sendToAllChannels(
-          `🔴 **Minecraft server is now OFFLINE**\n⏱️ Total runtime: **${uptime}**`
-        );
-      }
     }
   }, 30000); // check every 30 seconds
 });
